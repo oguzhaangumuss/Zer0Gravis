@@ -68,11 +68,17 @@ app.get('/health', (req, res) => {
 // API routes will be added here
 const apiPrefix = config.server.apiPrefix;
 
-// TODO: Add routes
-// app.use(`${apiPrefix}/oracle`, oracleRoutes);
+// Import routes
+import oracleRoutes from './routes/oracle';
+import chainRoutes from './routes/chain';
+
+// Register API routes
+app.use(`${apiPrefix}/oracle`, oracleRoutes);
+app.use(`${apiPrefix}/chain`, chainRoutes);
+// TODO: Add remaining routes
 // app.use(`${apiPrefix}/storage`, storageRoutes);
 // app.use(`${apiPrefix}/da`, daRoutes);
-// app.use(`${apiPrefix}/consensus`, consensusRoutes);
+// app.use(`${apiPrefix}/compute`, computeRoutes);
 
 // Error handling middleware
 app.use(notFoundHandler);
