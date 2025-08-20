@@ -71,12 +71,13 @@ const apiPrefix = config.server.apiPrefix;
 // Import routes
 import oracleRoutes from './routes/oracle';
 import chainRoutes from './routes/chain';
+import storageRoutes from './routes/storage';
 
 // Register API routes
 app.use(`${apiPrefix}/oracle`, oracleRoutes);
 app.use(`${apiPrefix}/chain`, chainRoutes);
+app.use(`${apiPrefix}/storage`, storageRoutes);
 // TODO: Add remaining routes
-// app.use(`${apiPrefix}/storage`, storageRoutes);
 // app.use(`${apiPrefix}/da`, daRoutes);
 // app.use(`${apiPrefix}/compute`, computeRoutes);
 
