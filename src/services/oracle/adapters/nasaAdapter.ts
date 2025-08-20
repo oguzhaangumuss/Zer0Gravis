@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// import fetch from 'node-fetch'; // Commented out for unit tests
 import { logger } from '../../../utils/logger';
 import { OracleDataPoint, OracleResponse, SpaceData } from '../oracleTypes';
 
@@ -241,7 +241,8 @@ export class NASAAdapter {
         rover: 'Perseverance'
       },
       mission: 'Mars 2020',
-      instrument: 'Mars Environmental Dynamics Analyzer (MEDA)'
+      instrument: 'Mars Environmental Dynamics Analyzer (MEDA)',
+      date: new Date().toISOString().split('T')[0]
     };
   }
 

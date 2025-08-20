@@ -94,15 +94,14 @@ export class ZeroGStorageService {
         throw new Error(`Merkle tree generation failed: ${treeErr}`);
       }
 
-      const rootHash = tree.rootHash();
+      const rootHash = tree?.rootHash();
       logger.info('Merkle tree generated', { rootHash });
 
       // Upload to 0G Storage Network
       const [tx, uploadErr] = await this.indexer.upload(
         file,
         config.zerog.chain.rpc,
-        this.signer,
-        0 // startSegmentIndex
+        this.signer
       );
 
       if (uploadErr) {
@@ -121,7 +120,7 @@ export class ZeroGStorageService {
 
       return {
         success: true,
-        rootHash: rootHash,
+        rootHash: rootHash || undefined,
         txHash: tx,
         size: stats.size,
         fileName: actualFileName,
@@ -327,13 +326,13 @@ export class ZeroGStorageService {
         throw new Error(`Merkle tree generation failed: ${treeErr}`);
       }
 
-      const localRootHash = tree.rootHash();
+      const localRootHash = tree?.rootHash();
       
       // Close file handle
       await file.close();
 
       // Compare hashes
-      const verified = localRootHash.toLowerCase() === rootHash.toLowerCase();
+      const verified = localRootHash?.toLowerCase() === rootHash.toLowerCase();
 
       logger.info('File verification result', {
         rootHash,

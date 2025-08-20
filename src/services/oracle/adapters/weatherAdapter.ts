@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+// import fetch from 'node-fetch'; // Commented out for unit tests
 import { logger } from '../../../utils/logger';
 import { OracleDataPoint, OracleResponse, WeatherData } from '../oracleTypes';
 

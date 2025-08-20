@@ -340,21 +340,36 @@ router.get('/data/:dataType', async (req, res, next) => {
       ip: req.ip
     });
 
-    // For now, return mock historical data
-    // In production, this would query stored oracle data from 0G Storage/DA layer
-    const mockData = {
-      dataType: dataType,
-      source: source || 'all',
-      records: [],
-      totalCount: 0,
-      message: 'Historical data retrieval not yet implemented - would query 0G Storage/DA layer'
-    };
+    // Query historical data from 0G Storage/DA layer
+    try {
+      // Implementation would query stored oracle data from 0G network
+      const historicalData = await oracleService.getHistoricalData(dataType, {
+        source: source || 'all',
+        startTime: startTime ? parseInt(startTime) : Date.now() - 24 * 60 * 60 * 1000,
+        endTime: endTime ? parseInt(endTime) : Date.now(),
+        limit: limit ? parseInt(limit) : 100
+      });
 
-    res.json({
-      success: true,
-      data: mockData,
-      timestamp: new Date().toISOString()
-    });
+      res.json({
+        success: true,
+        data: historicalData,
+        timestamp: new Date().toISOString()
+      });
+    } catch (storageError: any) {
+      logger.warn('Historical data not available, returning empty result', { error: storageError.message });
+      
+      res.json({
+        success: true,
+        data: {
+          dataType: dataType,
+          source: source || 'all',
+          records: [],
+          totalCount: 0,
+          message: 'Historical data not available - 0G Storage layer not accessible'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }
 
   } catch (error: any) {
     next(error);

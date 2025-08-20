@@ -8,7 +8,11 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "jest",
+    "test:unit": "jest src/tests/unit",
+    "test:integration": "jest src/tests/integration.test.ts",
     "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:unit:watch": "jest src/tests/unit --watch",
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix"
   },
