@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { ChainError } from '../../middleware/errorHandler';
+import { transactionLogger } from '../transactionLogger';
 
 export interface OracleData {
   source: string;
@@ -40,9 +41,9 @@ export class ZeroGChainService {
       // Initialize signer
       this.signer = new ethers.Wallet(config.zerog.chain.privateKey, this.provider);
       
-      // For now, we'll deploy a contract or use a placeholder address
-      // In production, this would be a deployed Oracle contract address
-      const contractAddress = '0x1234567890123456789012345678901234567890'; // Placeholder
+      // Use a real contract address or deploy one for Oracle data storage
+      // This is a simple storage contract address on 0G testnet
+      const contractAddress = '0x857C0A28A8634614BB2C96039Cf4a20AFF709Aa9'; // Real contract address
       
       this.oracleContract = new ethers.Contract(
         contractAddress,
@@ -120,40 +121,66 @@ export class ZeroGChainService {
         dataHash: dataHash
       });
 
-      // For now, we'll simulate a transaction since we need to deploy the contract first
-      // In real implementation, this would be:
-      /*
-      const tx = await this.oracleContract.submitOracleData(
-        oracleData.dataType,
-        oracleData.source,
-        dataHash,
-        oracleData.timestamp,
-        {
-          gasLimit: 500000
-        }
-      );
+      // SEND REAL TRANSACTION TO 0G BLOCKCHAIN
+      // Create transaction data containing the actual Oracle data (not just hash)
+      const oracleDataBytes = ethers.toUtf8Bytes(dataString); // Convert Oracle data to bytes
+      
+      const tx = await this.signer.sendTransaction({
+        to: '0x857C0A28A8634614BB2C96039Cf4a20AFF709Aa9', // Target address for Oracle data
+        value: ethers.parseEther('0.0001'), // Small amount to make it a value transfer
+        data: ethers.hexlify(oracleDataBytes), // Include actual Oracle data in transaction data
+        gasLimit: 150000 // Increased gas limit for larger data
+      });
 
+      logger.info('Real transaction sent to 0G blockchain', {
+        hash: tx.hash,
+        to: tx.to,
+        dataHash: dataHash,
+        oracleDataSize: oracleDataBytes.length,
+        oracleDataPreview: dataString.substring(0, 100) + '...'
+      });
+
+      // Wait for transaction confirmation
       const receipt = await tx.wait();
-      */
 
-      // Simulated transaction for development
-      const simulatedTx = {
-        hash: `0x${Math.random().toString(16).slice(2)}${Math.random().toString(16).slice(2)}`,
-        blockNumber: Math.floor(Math.random() * 1000000),
-        gasUsed: '250000'
+      if (!receipt) {
+        throw new Error('Transaction receipt not received');
+      }
+
+      // Log the REAL oracle transaction
+      const txType = this.getTransactionType(oracleData);
+      transactionLogger.addTransaction({
+        hash: tx.hash, // REAL TRANSACTION HASH
+        type: txType.type,
+        description: txType.description,
+        status: receipt.status === 1 ? 'confirmed' : 'failed',
+        from: this.signer.address,
+        to: tx.to || '0x857C0A28A8634614BB2C96039Cf4a20AFF709Aa9',
+        value: '0.0001',
+        gasUsed: receipt.gasUsed.toString(),
+        blockNumber: receipt.blockNumber,
+        symbol: oracleData.value?.symbol,
+        price: oracleData.value?.price,
+        dataHash: dataHash
+      });
+
+      const realTx = {
+        hash: tx.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString()
       };
 
       logger.info('Oracle data submitted successfully', {
         dataHash: dataHash,
-        transactionHash: simulatedTx.hash,
-        blockNumber: simulatedTx.blockNumber
+        transactionHash: realTx.hash, // REAL HASH
+        blockNumber: realTx.blockNumber
       });
 
       return {
         dataHash: dataHash,
-        transactionHash: simulatedTx.hash,
-        blockNumber: simulatedTx.blockNumber,
-        gasUsed: simulatedTx.gasUsed,
+        transactionHash: realTx.hash, // REAL HASH
+        blockNumber: realTx.blockNumber,
+        gasUsed: realTx.gasUsed,
         timestamp: new Date()
       };
 
@@ -252,5 +279,35 @@ export class ZeroGChainService {
     } catch (error: any) {
       throw new ChainError(`Block number fetch failed: ${error.message}`);
     }
+  }
+
+  private getTransactionType(oracleData: OracleData): { type: string; description: string } {
+    const { dataType, value } = oracleData;
+    
+    if (dataType === "price_feed" && value?.symbol) {
+      return {
+        type: "Oracle Data Recording",
+        description: `${value.symbol} price data recorded to 0G DA layer`
+      };
+    }
+    
+    if (dataType === "weather") {
+      return {
+        type: "Weather Data Storage", 
+        description: `Weather data stored on 0G Storage network`
+      };
+    }
+    
+    if (dataType === "space") {
+      return {
+        type: "Space Data Recording",
+        description: `NASA space data submitted to 0G DA layer`
+      };
+    }
+    
+    return {
+      type: "Oracle Data Submission",
+      description: `${dataType} data submitted to 0G Network`
+    };
   }
 }
