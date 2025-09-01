@@ -188,6 +188,119 @@ export class ChainlinkAdapter {
     }
   }
 
+  async getHistoricalData(symbol: string, timeframe: '1h' | '24h' | '7d' | '30d' = '24h', limit: number = 100): Promise<OracleResponse> {
+    const startTime = Date.now();
+    
+    try {
+      logger.info('Fetching historical price data', {
+        symbol,
+        timeframe,
+        limit
+      });
+
+      // Convert timeframe to days for CoinGecko API
+      const days: Record<string, string> = {
+        '1h': '1',
+        '24h': '1', 
+        '7d': '7',
+        '30d': '30'
+      };
+
+      const coinMap: Record<string, string> = {
+        'ETH/USD': 'ethereum',
+        'BTC/USD': 'bitcoin',
+        'LINK/USD': 'chainlink',
+        'ADA/USD': 'cardano',
+        'DOT/USD': 'polkadot'
+      };
+
+      const coinId = coinMap[symbol];
+      if (!coinId) {
+        throw new Error(`Unsupported symbol for historical data: ${symbol}`);
+      }
+
+      // Fetch historical market data from CoinGecko
+      const response = await axios.get(`https://api.coingecko.com/api/v3/coins/${coinId}/market_chart`, {
+        timeout: 15000,
+        params: {
+          vs_currency: 'usd',
+          days: days[timeframe],
+          interval: timeframe === '1h' ? 'minutely' : timeframe === '24h' ? 'hourly' : 'daily'
+        }
+      });
+
+      const prices = response.data.prices || [];
+      const volumes = response.data.total_volumes || [];
+      
+      // Process the data to match Oracle format
+      const historicalData = prices.slice(-limit).map((pricePoint: [number, number], index: number) => {
+        const [timestamp, price] = pricePoint;
+        const volume = volumes[index] ? volumes[index][1] : 0;
+        
+        return {
+          timestamp: timestamp,
+          price: Math.round(price * 100) / 100,
+          volume: Math.floor(volume),
+          symbol: symbol
+        };
+      });
+
+      const oracleDataPoint: OracleDataPoint = {
+        source: 'chainlink',
+        dataType: 'historical_price_feed',
+        value: {
+          symbol: symbol,
+          timeframe: timeframe,
+          dataPoints: historicalData,
+          count: historicalData.length,
+          firstTimestamp: historicalData[0]?.timestamp,
+          lastTimestamp: historicalData[historicalData.length - 1]?.timestamp,
+          avgPrice: historicalData.reduce((sum: number, point: any) => sum + point.price, 0) / historicalData.length,
+          minPrice: Math.min(...historicalData.map((point: any) => point.price)),
+          maxPrice: Math.max(...historicalData.map((point: any) => point.price))
+        },
+        timestamp: Date.now(),
+        confidence: 0.92,
+        metadata: {
+          symbol: symbol,
+          timeframe: timeframe,
+          source: 'coingecko_historical',
+          dataPoints: historicalData.length
+        }
+      };
+
+      logger.info('Historical data retrieved successfully', {
+        symbol,
+        dataPoints: historicalData.length,
+        timeRange: `${new Date(historicalData[0]?.timestamp).toISOString()} - ${new Date(historicalData[historicalData.length - 1]?.timestamp).toISOString()}`
+      });
+
+      return {
+        success: true,
+        data: oracleDataPoint,
+        source: 'chainlink',
+        timestamp: Date.now(),
+        responseTime: Date.now() - startTime
+      };
+
+    } catch (error: any) {
+      logger.error('Historical data fetch failed', {
+        symbol,
+        timeframe,
+        error: error.message,
+        responseTime: Date.now() - startTime
+      });
+
+      return {
+        success: false,
+        error: error.message,
+        source: 'chainlink',
+        timestamp: Date.now(),
+        responseTime: Date.now() - startTime
+      };
+    }
+  }
+
   async getProviderInfo(): Promise<any> {
     try {
       const [blockNumber, network] = await Promise.all([

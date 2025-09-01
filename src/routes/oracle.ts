@@ -326,7 +326,7 @@ router.get('/health', async (req, res, next) => {
 router.get('/data/:dataType', async (req, res, next) => {
   try {
     const { dataType } = req.params;
-    const { source, limit = '100' } = req.query;
+    const { source, limit = '100', startTime, endTime } = req.query;
 
     // Validate dataType
     if (!Object.values(OracleDataType).includes(dataType as OracleDataType)) {
@@ -342,12 +342,18 @@ router.get('/data/:dataType', async (req, res, next) => {
 
     // Query historical data from 0G Storage/DA layer
     try {
+      // Parse query parameters safely
+      const startTimeParam = Array.isArray(startTime) ? startTime[0] as string : startTime as string;
+      const endTimeParam = Array.isArray(endTime) ? endTime[0] as string : endTime as string;
+      const limitParam = Array.isArray(limit) ? limit[0] as string : limit as string;
+      const sourceParam = Array.isArray(source) ? source[0] as string : source as string;
+      
       // Implementation would query stored oracle data from 0G network
       const historicalData = await oracleService.getHistoricalData(dataType, {
-        source: source || 'all',
-        startTime: startTime ? parseInt(startTime) : Date.now() - 24 * 60 * 60 * 1000,
-        endTime: endTime ? parseInt(endTime) : Date.now(),
-        limit: limit ? parseInt(limit) : 100
+        sources: sourceParam ? [sourceParam] : ['chainlink'],
+        startTime: startTimeParam ? parseInt(startTimeParam) : Date.now() - 24 * 60 * 60 * 1000,
+        endTime: endTimeParam ? parseInt(endTimeParam) : Date.now(),
+        limit: limitParam ? parseInt(limitParam) : 100
       });
 
       res.json({
@@ -388,9 +394,24 @@ router.get('/data/:dataType', async (req, res, next) => {
  */
 router.get('/consensus/methods', async (req, res, next) => {
   try {
+    const getConsensusMethodDescription = (method: ConsensusMethod): string => {
+      switch (method) {
+        case ConsensusMethod.MAJORITY_VOTE:
+          return 'Uses majority voting to determine consensus value';
+        case ConsensusMethod.WEIGHTED_AVERAGE:
+          return 'Calculates weighted average based on source reliability';
+        case ConsensusMethod.MEDIAN:
+          return 'Uses median value from all sources';
+        case ConsensusMethod.AI_CONSENSUS:
+          return 'AI-powered consensus using machine learning algorithms';
+        default:
+          return 'Unknown consensus method';
+      }
+    };
+
     const consensusMethods = Object.values(ConsensusMethod).map(method => ({
       value: method,
-      description: this.getConsensusMethodDescription(method)
+      description: getConsensusMethodDescription(method)
     }));
 
     res.json({

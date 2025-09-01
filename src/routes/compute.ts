@@ -540,7 +540,7 @@ router.get('/models', async (req, res, next) => {
 
     // Enrich model info with descriptions and capabilities
     const modelsWithInfo = networkStatus.availableModels.map(modelName => {
-      const modelInfo = this.getModelInfo(modelName);
+      const modelInfo = getModelInfo(modelName);
       return {
         name: modelName,
         description: modelInfo.description,

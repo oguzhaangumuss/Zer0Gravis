@@ -150,17 +150,18 @@ router.get('/recent', async (req, res) => {
           for (const txResponse of block.transactions) {
             if (blockTransactions.length >= limit) break;
             
-            // txResponse is TransactionResponse, convert to proper transaction object
+            // Cast txResponse to proper type since it comes from ethers block.transactions array
+            const txData = txResponse as any;
             const tx = {
-              hash: txResponse.hash,
-              from: txResponse.from,
-              to: txResponse.to,
-              value: txResponse.value,
-              data: txResponse.data,
-              gasLimit: txResponse.gasLimit,
-              gasPrice: txResponse.gasPrice,
-              nonce: txResponse.nonce,
-              index: txResponse.index
+              hash: txData.hash,
+              from: txData.from,
+              to: txData.to,
+              value: txData.value,
+              data: txData.data,
+              gasLimit: txData.gasLimit,
+              gasPrice: txData.gasPrice,
+              nonce: txData.nonce,
+              index: txData.index
             };
             
             // Check if transaction involves our wallet
