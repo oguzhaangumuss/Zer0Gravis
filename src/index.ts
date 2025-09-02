@@ -75,6 +75,7 @@ import storageRoutes from './routes/storage';
 import daRoutes from './routes/da';
 import computeRoutes from './routes/compute';
 import transactionRoutes from './routes/transactions';
+import walletRoutes from './routes/wallet';
 
 // Register API routes
 app.use(`${apiPrefix}/oracle`, oracleRoutes);
@@ -83,6 +84,7 @@ app.use(`${apiPrefix}/storage`, storageRoutes);
 app.use(`${apiPrefix}/da`, daRoutes);
 app.use(`${apiPrefix}/compute`, computeRoutes);
 app.use(`${apiPrefix}/transactions`, transactionRoutes);
+app.use(`${apiPrefix}/wallet`, walletRoutes);
 
 // Error handling middleware
 app.use(notFoundHandler);

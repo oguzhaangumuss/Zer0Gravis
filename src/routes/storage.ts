@@ -250,8 +250,9 @@ router.post('/upload-data', async (req, res, next) => {
       ip: req.ip
     });
 
-    // Upload data to 0G Storage
-    const result = await storageService.storeOracleData(data, fileName);
+    // Upload data to 0G Storage with wallet address
+    const walletAddress = req.body.walletAddress;
+    const result = await storageService.storeOracleData(data, fileName, walletAddress);
 
     if (!result.success) {
       throw new StorageError(result.error || 'Data upload failed');
@@ -606,7 +607,8 @@ router.get('/info', async (req, res, next) => {
   try {
     logger.info('Storage info request received', { ip: req.ip });
 
-    const storageInfo = await storageService.getStorageInfo();
+    const walletAddress = req.query.walletAddress as string;
+    const storageInfo = await storageService.getStorageInfo(walletAddress);
 
     if (storageInfo.status === 'disconnected') {
       return res.status(503).json({
@@ -784,7 +786,8 @@ router.get('/test', async (req, res, next) => {
   try {
     logger.info('Storage connection test requested', { ip: req.ip });
 
-    const connected = await storageService.testConnection();
+    const walletAddress = req.query.walletAddress as string;
+    const connected = await storageService.testConnection(walletAddress);
 
     if (!connected) {
       return res.status(503).json({

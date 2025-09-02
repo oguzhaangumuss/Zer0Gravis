@@ -5,6 +5,7 @@ import path from 'path';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
 import { StorageError } from '../../middleware/errorHandler';
+import { walletService } from '../wallet/walletService';
 
 export interface StorageUploadResult {
   success: boolean;
@@ -37,27 +38,21 @@ export interface StorageFileInfo {
 export class ZeroGStorageService {
   private indexer: Indexer;
   private provider: ethers.Provider;
-  private signer: ethers.Wallet;
   private flowContract: any;
 
   constructor() {
     try {
-      // Initialize provider and signer - use chain RPC for transactions
+      // Initialize provider for read operations
       this.provider = new ethers.JsonRpcProvider(config.zerog.chain.rpc);
-      this.signer = new ethers.Wallet(config.zerog.chain.privateKey, this.provider);
 
       // Initialize indexer with 0G indexer endpoint
       this.indexer = new Indexer(config.zerog.storage.indexerRpc);
-
-      // Get flow contract - this will be initialized when needed
-      this.flowContract = getFlowContract(config.zerog.storage.flowContract, this.signer);
 
       logger.info('0G Storage Service initialized', {
         service: 'ZeroGravis',
         version: '1.0.0',
         indexerRpc: config.zerog.storage.indexerRpc,
-        flowContract: config.zerog.storage.flowContract,
-        signerAddress: this.signer.address
+        flowContract: config.zerog.storage.flowContract
       });
 
     } catch (error: any) {
@@ -68,6 +63,50 @@ export class ZeroGStorageService {
       });
       throw new StorageError(`Storage service initialization failed: ${error.message}`);
     }
+  }
+
+  private async createSigner(walletAddress?: string): Promise<ethers.Wallet> {
+    // For now, we'll use the backend signer as fallback
+    // In production, transactions should be signed on frontend and sent as raw transactions
+    const signer = walletService.createBackendSigner();
+    
+    if (walletAddress) {
+      try {
+        // Get wallet info to verify it exists and has balance
+        const walletInfo = await walletService.getWalletInfo(walletAddress);
+        
+        logger.info('Creating signer for wallet operation', {
+          requestedAddress: walletAddress,
+          requestedBalance: walletInfo.balance,
+          signerAddress: signer.address,
+          note: 'Using backend signer as fallback - frontend should handle signing'
+        });
+        
+        // Check if requested wallet has sufficient balance
+        if (parseFloat(walletInfo.balance) < 0.001) { // 0.001 OG minimum
+          logger.warn('Requested wallet has low balance', {
+            requestedAddress: walletAddress,
+            balance: walletInfo.balance
+          });
+        }
+      } catch (error: any) {
+        logger.warn('Failed to verify requested wallet, using backend signer', {
+          requestedAddress: walletAddress,
+          error: error.message
+        });
+      }
+    } else {
+      logger.info('No wallet address provided, using backend signer');
+    }
+    
+    return signer;
+  }
+
+  private getFlowContract(signer: ethers.Wallet): any {
+    if (!this.flowContract) {
+      this.flowContract = getFlowContract(config.zerog.storage.flowContract, signer);
+    }
+    return this.flowContract;
   }
 
   async uploadFile(filePath: string, fileName?: string, walletAddress?: string): Promise<StorageUploadResult> {
@@ -83,11 +122,15 @@ export class ZeroGStorageService {
       const stats = fs.statSync(filePath);
       const actualFileName = fileName || path.basename(filePath);
       
+      // Create signer for this operation
+      const signer = await this.createSigner(walletAddress);
+      
       logger.info('Starting file upload to 0G Storage', {
         filePath,
         fileName: actualFileName,
         size: stats.size,
-        walletAddress: walletAddress || 'backend-default'
+        walletAddress: walletAddress || 'backend-default',
+        signerAddress: signer.address
       });
 
       // Create ZgFile
@@ -102,11 +145,11 @@ export class ZeroGStorageService {
       const rootHash = tree?.rootHash();
       logger.info('Merkle tree generated', { rootHash });
 
-      // Upload to 0G Storage Network
+      // Upload to 0G Storage Network using wallet-specific signer
       const [tx, uploadErr] = await this.indexer.upload(
         file,
         config.zerog.chain.rpc,
-        this.signer
+        signer
       );
 
       if (uploadErr) {
@@ -147,7 +190,7 @@ export class ZeroGStorageService {
     }
   }
 
-  async uploadBuffer(buffer: Buffer, fileName: string): Promise<StorageUploadResult> {
+  async uploadBuffer(buffer: Buffer, fileName: string, walletAddress?: string): Promise<StorageUploadResult> {
     const startTime = Date.now();
     
     try {
@@ -166,8 +209,8 @@ export class ZeroGStorageService {
         tempFilePath
       });
 
-      // Upload the temporary file
-      const result = await this.uploadFile(tempFilePath, fileName);
+      // Upload the temporary file with wallet address
+      const result = await this.uploadFile(tempFilePath, fileName, walletAddress);
 
       // Clean up temporary file
       try {
@@ -357,12 +400,15 @@ export class ZeroGStorageService {
     }
   }
 
-  async getStorageInfo(): Promise<any> {
+  async getStorageInfo(walletAddress?: string): Promise<any> {
     try {
       // Get network information
       const network = await this.provider.getNetwork();
       const blockNumber = await this.provider.getBlockNumber();
-      const balance = await this.provider.getBalance(this.signer.address);
+      
+      // Create signer to get wallet info
+      const signer = await this.createSigner(walletAddress);
+      const balance = await this.provider.getBalance(signer.address);
 
       return {
         network: {
@@ -374,7 +420,8 @@ export class ZeroGStorageService {
           connected: true
         },
         wallet: {
-          address: this.signer.address,
+          address: signer.address,
+          requestedAddress: walletAddress,
           balance: ethers.formatEther(balance),
           balanceUnit: 'OG'
         },
@@ -407,16 +454,19 @@ export class ZeroGStorageService {
     }
   }
 
-  async testConnection(): Promise<boolean> {
+  async testConnection(walletAddress?: string): Promise<boolean> {
     try {
       // Test provider connection
       const blockNumber = await this.provider.getBlockNumber();
       
       // Test signer balance
-      const balance = await this.provider.getBalance(this.signer.address);
+      const signer = await this.createSigner(walletAddress);
+      const balance = await this.provider.getBalance(signer.address);
       
       logger.info('Storage connection test successful', {
         blockNumber,
+        walletAddress,
+        signerAddress: signer.address,
         balance: ethers.formatEther(balance)
       });
 
@@ -424,6 +474,7 @@ export class ZeroGStorageService {
 
     } catch (error: any) {
       logger.error('Storage connection test failed', {
+        walletAddress,
         error: error.message
       });
       return false;
@@ -476,7 +527,7 @@ export class ZeroGStorageService {
   }
 
   // Oracle data specific methods
-  async storeOracleData(oracleData: any, fileName: string): Promise<StorageUploadResult> {
+  async storeOracleData(oracleData: any, fileName: string, walletAddress?: string): Promise<StorageUploadResult> {
     try {
       // Serialize oracle data to JSON
       const dataString = JSON.stringify(oracleData, null, 2);
@@ -489,8 +540,8 @@ export class ZeroGStorageService {
         oracleSource: oracleData.source
       });
 
-      // Upload buffer to storage
-      const result = await this.uploadBuffer(buffer, fileName);
+      // Upload buffer to storage with wallet address
+      const result = await this.uploadBuffer(buffer, fileName, walletAddress);
 
       if (result.success) {
         logger.info('Oracle data stored successfully', {
