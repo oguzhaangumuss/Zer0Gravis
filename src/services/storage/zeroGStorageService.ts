@@ -42,17 +42,19 @@ export class ZeroGStorageService {
 
   constructor() {
     try {
-      // Initialize provider and signer
-      this.provider = new ethers.JsonRpcProvider(config.zerog.storage.indexerRpc);
+      // Initialize provider and signer - use chain RPC for transactions
+      this.provider = new ethers.JsonRpcProvider(config.zerog.chain.rpc);
       this.signer = new ethers.Wallet(config.zerog.chain.privateKey, this.provider);
 
-      // Initialize indexer
+      // Initialize indexer with 0G indexer endpoint
       this.indexer = new Indexer(config.zerog.storage.indexerRpc);
 
-      // Get flow contract
+      // Get flow contract - this will be initialized when needed
       this.flowContract = getFlowContract(config.zerog.storage.flowContract, this.signer);
 
       logger.info('0G Storage Service initialized', {
+        service: 'ZeroGravis',
+        version: '1.0.0',
         indexerRpc: config.zerog.storage.indexerRpc,
         flowContract: config.zerog.storage.flowContract,
         signerAddress: this.signer.address
@@ -60,13 +62,15 @@ export class ZeroGStorageService {
 
     } catch (error: any) {
       logger.error('Failed to initialize 0G Storage Service', {
+        service: 'ZeroGravis',
+        version: '1.0.0',
         error: error.message
       });
       throw new StorageError(`Storage service initialization failed: ${error.message}`);
     }
   }
 
-  async uploadFile(filePath: string, fileName?: string): Promise<StorageUploadResult> {
+  async uploadFile(filePath: string, fileName?: string, walletAddress?: string): Promise<StorageUploadResult> {
     const startTime = Date.now();
     
     try {
@@ -82,7 +86,8 @@ export class ZeroGStorageService {
       logger.info('Starting file upload to 0G Storage', {
         filePath,
         fileName: actualFileName,
-        size: stats.size
+        size: stats.size,
+        walletAddress: walletAddress || 'backend-default'
       });
 
       // Create ZgFile

@@ -202,7 +202,7 @@ const computeService = new ZeroGComputeService();
  */
 router.post('/inference', async (req, res, next) => {
   try {
-    const { model, prompt, maxTokens, temperature, topP, systemPrompt, metadata } = req.body;
+    const { model, prompt, maxTokens, temperature, topP, systemPrompt, metadata, walletAddress } = req.body;
 
     // Validate required fields
     if (!prompt) {
@@ -243,7 +243,8 @@ router.post('/inference', async (req, res, next) => {
       temperature,
       topP,
       systemPrompt,
-      metadata
+      metadata,
+      walletAddress
     };
 
     const result = await computeService.submitInferenceJob(inferenceRequest);

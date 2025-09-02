@@ -130,17 +130,19 @@ router.post('/upload', upload.single('file'), async (req, res, next) => {
     }
 
     const customFileName = req.body.fileName || req.file.originalname;
+    const walletAddress = req.body.walletAddress;
 
     logger.info('Storage upload request received', {
       originalName: req.file.originalname,
       fileName: customFileName,
       size: req.file.size,
       mimetype: req.file.mimetype,
+      walletAddress: walletAddress,
       ip: req.ip
     });
 
     // Upload file to 0G Storage
-    const result = await storageService.uploadFile(req.file.path, customFileName);
+    const result = await storageService.uploadFile(req.file.path, customFileName, walletAddress);
 
     // Clean up temporary file
     try {
